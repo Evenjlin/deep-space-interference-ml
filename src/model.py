@@ -52,3 +52,38 @@ def pca_score(x: np.ndarray, pca: PCA) -> float:
     v = vectorize(x).reshape(1, -1)
     v_proj = pca.inverse_transform(pca.transform(v))
     return float(np.sum((v - v_proj) ** 2))
+
+
+import torch
+import torch.nn as nn
+
+
+class MLPAutoencoder(nn.Module):
+    """
+    OUR ASSUMPTION: architecture not specified in paper (external ref [2]).
+    Simple 3-layer encoder/decoder, ~16x bottleneck compression.
+    """
+    def __init__(self, input_dim: int):
+        super().__init__()
+        bottleneck = max(8, input_dim // 16)
+        hidden = input_dim // 4
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden), nn.ReLU(),
+            nn.Linear(hidden, bottleneck), nn.ReLU(),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(bottleneck, hidden), nn.ReLU(),
+            nn.Linear(hidden, input_dim),
+        )
+
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+
+def ae_score(x: np.ndarray, model: MLPAutoencoder, device) -> float:
+    """Reconstruction MSE as anomaly score -- BASE-PAPER FACT for AE detector."""
+    v = torch.tensor(vectorize(x), dtype=torch.float32, device=device).unsqueeze(0)
+    with torch.no_grad():
+        recon = model(v)
+        mse = torch.mean((v - recon) ** 2).item()
+    return mse
