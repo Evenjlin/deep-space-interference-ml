@@ -61,11 +61,11 @@ import torch.nn as nn
 class MLPAutoencoder(nn.Module):
     """
     OUR ASSUMPTION: architecture not specified in paper (external ref [2]).
-    Simple 3-layer encoder/decoder, ~16x bottleneck compression.
+    Simple 3-layer encoder/decoder; bottleneck size configurable via `compression`.
     """
-    def __init__(self, input_dim: int):
+    def __init__(self, input_dim: int, compression: int = 16):
         super().__init__()
-        bottleneck = max(8, input_dim // 16)
+        bottleneck = max(8, input_dim // compression)
         hidden = input_dim // 4
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, hidden), nn.ReLU(),
