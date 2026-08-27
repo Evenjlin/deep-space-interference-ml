@@ -48,8 +48,11 @@ def debug_ladder(model, train_vecs, device):
 
 
 def train_autoencoder(model, train_vecs, val_vecs, device, epochs=50, 
-                       batch_size=64, lr=1e-3, patience=5):
+                       batch_size=64, lr=1e-3, patience=5, seed = 42):
     """Full training loop with early stopping and loss history logging."""
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
