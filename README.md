@@ -14,6 +14,10 @@ Detection and Mitigation on Deep Space Telecom Signals" (SSC25-RAI-07).
 | FFT freq estimation + compensated Mahalanobis (Table 1) | 6 | Done — see results/step6_findings.md |
 | SNR estimation (Eq. 17) + full ISO-AUC grids (Fig. 5-7) | 7 | In progress |
 | CNN Autoencoder mitigation (Fig. 11-15) | 8+ | Not started |
+| CNN time-shift estimator | 5 | Done — see results/step5_findings.md |
+| FFT freq estimation + compensated Mahalanobis (Table 1) | 6 | Done — see results/step6_findings.md |
+| SNR estimation (Eq. 17) + full ISO-AUC grid (Fig. 5-7) | 7 | Done — see results/step7_findings.md |
+| CNN Autoencoder mitigation (Fig. 11-15) | 8+ | Not started |
 
 ## Key findings so far
 - Mahalanobis distance has a strong frequency-dependent blind spot for
@@ -24,6 +28,15 @@ Detection and Mitigation on Deep Space Telecom Signals" (SSC25-RAI-07).
 - Shift compensation (CNN time-shift + FFT frequency estimation) recovers
   most of the AUC lost to time/frequency shifts, confirming the paper's
   core claimed mechanism (see step6_findings.md).
+- Shift compensation (CNN time-shift + FFT frequency) reproduces the
+  paper's core mechanism robustly across a full SIR/SNR grid, not just
+  one point (step6/7).
+- SNR-corrected covariance (Eq. 17) has a real, evidence-backed gap
+  between estimator accuracy and actual detection benefit — a better-
+  calibrated SNR estimator (3x lower MAE) did NOT reliably improve
+  downstream AUC, and degradation is wider than the paper's own stated
+  caveat (see step7_findings.md). Strong candidate for the eventual
+  Research Opportunity Report.
 
 ## Repo structure
 - `src/` — reusable modules (channel.py, model.py, data_loader.py, train.py)
