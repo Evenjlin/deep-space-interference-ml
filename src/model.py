@@ -87,3 +87,37 @@ def ae_score(x: np.ndarray, model: MLPAutoencoder, device) -> float:
         recon = model(v)
         mse = torch.mean((v - recon) ** 2).item()
     return mse
+
+
+class TimeShiftCNN(nn.Module):
+    """
+    BASE-PAPER FACT (architecture): 3x Conv1D (kernel=3, stride=2, ReLU, BatchNorm),
+    first conv has 2 input channels (I/Q) and kernel size = NSPS, global average
+    pool over time, FC + softmax over NSPS classes.
+    OUR ASSUMPTION: paper says "Binary Cross-Entropy" but describes a softmax
+    multi-class output -- implemented here as raw logits for nn.CrossEntropyLoss
+    (mathematically the standard pairing for this architecture).
+    """
+    def __init__(self, nsps: int):
+        super().__init__()
+        self.nsps = nsps
+        self.conv1 = nn.Conv1d(2, 16, kernel_size=nsps, stride=2)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.conv2 = nn.Conv1d(16, 32, kernel_size=3, stride=2)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.conv3 = nn.Conv1d(32, 64, kernel_size=3, stride=2)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.fc = nn.Linear(64, nsps + 1)  # classes: 0..NSPS inclusive (Eq.15)
+
+    def forward(self, x):
+        # x: (batch, 2, time) -- real/imag as channels
+        x = torch.relu(self.bn1(self.conv1(x)))
+        x = torch.relu(self.bn2(self.conv2(x)))
+        x = torch.relu(self.bn3(self.conv3(x)))
+        x = x.mean(dim=2)  # global average pool over time
+        return self.fc(x)  # raw logits -- CrossEntropyLoss applies softmax internally
+
+
+def complex_to_channels(x: np.ndarray) -> np.ndarray:
+    """(N,) complex -> (2, N) real/imag stacked as channels, for CNN input."""
+    return np.stack([x.real, x.imag])
