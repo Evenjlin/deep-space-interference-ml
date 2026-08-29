@@ -121,3 +121,40 @@ class TimeShiftCNN(nn.Module):
 def complex_to_channels(x: np.ndarray) -> np.ndarray:
     """(N,) complex -> (2, N) real/imag stacked as channels, for CNN input."""
     return np.stack([x.real, x.imag])
+
+
+def estimate_frequency_shift(x: np.ndarray, cfg) -> float:
+    """
+    BASE-PAPER FACT: 'argmax of FFT within main lobe' estimates fd.
+    Main lobe = [-Rs, Rs] per the paper's stated search range.
+    """
+    N = len(x)
+    spectrum = np.fft.fft(x)
+    freqs = np.fft.fftfreq(N, d=1/cfg.Fs)
+    mask = (freqs >= -cfg.Rs) & (freqs <= cfg.Rs)
+    peak_idx = np.argmax(np.abs(spectrum[mask]))
+    return freqs[mask][peak_idx]
+
+
+def compensate_signal(x: np.ndarray, cfg, timeshift_model, device) -> np.ndarray:
+    """
+    Estimate time shift (CNN) and frequency shift (FFT argmax), then
+    correct the signal by undoing both -- OUR ASSUMPTION on mechanics,
+    since the paper describes what is estimated but not the exact
+    correction procedure.
+    """
+    import torch
+    # Frequency correction
+    fd_hat = estimate_frequency_shift(x, cfg)
+    n = np.arange(len(x))
+    x_freq_corrected = x * np.exp(-1j * 2 * np.pi * fd_hat / cfg.Fs * n)
+
+    # Time-shift correction (CNN inference)
+    channels = complex_to_channels(x_freq_corrected).astype(np.float32)
+    with torch.no_grad():
+        inp = torch.tensor(channels, device=device).unsqueeze(0)
+        logits = timeshift_model(inp)
+        k_hat = int(logits.argmax(dim=1).item())
+    x_corrected = np.roll(x_freq_corrected, -k_hat)
+
+    return x_corrected, fd_hat, k_hat
