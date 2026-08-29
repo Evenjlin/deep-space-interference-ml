@@ -101,3 +101,51 @@ def train_autoencoder(model, train_vecs, val_vecs, device, epochs=50,
 
     model.load_state_dict(best_state)
     return model, history
+
+def train_shift_cnn(model, X_train, y_train, X_val, y_val, device,
+                      epochs=30, batch_size=128, lr=1e-3, patience=5, seed=42):
+    """Moved from notebook-local code (05_time_shift_cnn.ipynb) for reuse, per modular structure."""
+    torch.manual_seed(seed)
+    model.to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    Xt, yt = torch.tensor(X_train, device=device), torch.tensor(y_train, device=device)
+    Xv, yv = torch.tensor(X_val, device=device), torch.tensor(y_val, device=device)
+
+    history = {"train_loss": [], "val_loss": [], "val_acc": []}
+    best_val, best_state, patience_ct = float("inf"), None, 0
+    n = Xt.shape[0]
+
+    for epoch in range(epochs):
+        model.train()
+        perm = torch.randperm(n)
+        ep_losses = []
+        for i in range(0, n, batch_size):
+            idx = perm[i:i+batch_size]
+            opt.zero_grad()
+            out = model(Xt[idx])
+            loss = loss_fn(out, yt[idx])
+            loss.backward(); opt.step()
+            ep_losses.append(loss.item())
+
+        model.eval()
+        with torch.no_grad():
+            val_out = model(Xv)
+            val_loss = loss_fn(val_out, yv).item()
+            val_acc = (val_out.argmax(dim=1) == yv).float().mean().item()
+
+        train_loss = float(np.mean(ep_losses))
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
+        print(f"Epoch {epoch+1}/{epochs}  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  val_acc={val_acc:.4f}")
+
+        if val_loss < best_val:
+            best_val, best_state, patience_ct = val_loss, {k: v.clone() for k, v in model.state_dict().items()}, 0
+        else:
+            patience_ct += 1
+            if patience_ct >= patience:
+                print(f"Early stopping at epoch {epoch+1}")
+                break
+    model.load_state_dict(best_state)
+    return model, history
