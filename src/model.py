@@ -189,3 +189,56 @@ def corrected_covariance(C_soi: np.ndarray, C_noise: np.ndarray, snr_db_hat: flo
     """Eq.(17): C(SNR) = (rho_snr*C_SOI + C_noise) / (rho_snr + 1)"""
     rho_snr = 10 ** (snr_db_hat / 10)
     return (rho_snr * C_soi + C_noise) / (rho_snr + 1)
+
+class ResidualBlock1D(nn.Module):
+    def __init__(self, channels, kernel_size=3):
+        super().__init__()
+        pad = kernel_size // 2
+        self.conv1 = nn.Conv1d(channels, channels, kernel_size, padding=pad)
+        self.norm1 = nn.GroupNorm(1, channels)
+        self.conv2 = nn.Conv1d(channels, channels, kernel_size, padding=pad)
+        self.norm2 = nn.GroupNorm(1, channels)
+
+    def forward(self, x):
+        out = torch.relu(self.norm1(self.conv1(x)))
+        out = self.norm2(self.conv2(out))
+        return torch.relu(out + x)
+
+
+class MitigationAutoencoder(nn.Module):
+    """
+    OUR ASSUMPTION: n_stages/n_hidden not specified in paper. Downsample
+    stride=4 kernel=9, upsample stride=4 kernel=4, channels double/halve
+    per stage (all BASE-PAPER FACT structural choices).
+    """
+    def __init__(self, n_stages: int = 2, n_hidden: int = 32):
+        super().__init__()
+        self.first_conv = nn.Conv1d(2, n_hidden, kernel_size=9, padding=4)
+
+        enc_blocks, ch = [], n_hidden
+        for _ in range(n_stages):
+            enc_blocks.append(ResidualBlock1D(ch))
+            enc_blocks.append(nn.Conv1d(ch, ch * 2, kernel_size=9, stride=4, padding=4))
+            ch *= 2
+        self.encoder = nn.ModuleList(enc_blocks)
+
+        dec_blocks = []
+        for _ in range(n_stages):
+            dec_blocks.append(ResidualBlock1D(ch))
+            dec_blocks.append(nn.ConvTranspose1d(ch, ch // 2, kernel_size=4, stride=4))
+            ch //= 2
+        self.decoder = nn.ModuleList(dec_blocks)
+        self.final_conv = nn.Conv1d(ch, 2, kernel_size=9, padding=4)
+
+    def forward(self, x):
+        h = self.first_conv(x)
+        for layer in self.encoder:
+            h = layer(h)
+        for layer in self.decoder:
+            h = layer(h)
+        out = self.final_conv(h)
+        if out.shape[-1] != x.shape[-1]:
+            min_len = min(out.shape[-1], x.shape[-1])
+            out = out[..., :min_len]
+        return out
+ 
