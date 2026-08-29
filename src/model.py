@@ -158,3 +158,34 @@ def compensate_signal(x: np.ndarray, cfg, timeshift_model, device) -> np.ndarray
     x_corrected = np.roll(x_freq_corrected, -k_hat)
 
     return x_corrected, fd_hat, k_hat
+
+
+class SNRRegressionCNN(nn.Module):
+    """
+    OUR ASSUMPTION: paper says 'same CNN employed for time shift estimation'
+    but that network has a 9-way softmax output, structurally incompatible
+    with regression. Implemented as a separate network sharing the same
+    conv backbone shape, with a single-value regression head instead.
+    """
+    def __init__(self, nsps: int):
+        super().__init__()
+        self.conv1 = nn.Conv1d(2, 16, kernel_size=nsps, stride=2)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.conv2 = nn.Conv1d(16, 32, kernel_size=3, stride=2)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.conv3 = nn.Conv1d(32, 64, kernel_size=3, stride=2)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.fc = nn.Linear(64, 1)  # regression: predicts SNR in dB
+
+    def forward(self, x):
+        x = torch.relu(self.bn1(self.conv1(x)))
+        x = torch.relu(self.bn2(self.conv2(x)))
+        x = torch.relu(self.bn3(self.conv3(x)))
+        x = x.mean(dim=2)
+        return self.fc(x).squeeze(-1)
+
+
+def corrected_covariance(C_soi: np.ndarray, C_noise: np.ndarray, snr_db_hat: float) -> np.ndarray:
+    """Eq.(17): C(SNR) = (rho_snr*C_SOI + C_noise) / (rho_snr + 1)"""
+    rho_snr = 10 ** (snr_db_hat / 10)
+    return (rho_snr * C_soi + C_noise) / (rho_snr + 1)
