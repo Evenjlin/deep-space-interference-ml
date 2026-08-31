@@ -231,14 +231,18 @@ class MitigationAutoencoder(nn.Module):
         self.final_conv = nn.Conv1d(ch, 2, kernel_size=9, padding=4)
 
     def forward(self, x):
-        h = self.first_conv(x)
-        for layer in self.encoder:
-            h = layer(h)
-        for layer in self.decoder:
-            h = layer(h)
-        out = self.final_conv(h)
-        if out.shape[-1] != x.shape[-1]:
-            min_len = min(out.shape[-1], x.shape[-1])
-            out = out[..., :min_len]
-        return out
+    h = self.first_conv(x)
+    for layer in self.encoder:
+        h = layer(h)
+    for layer in self.decoder:
+        h = layer(h)
+    out = self.final_conv(h)
+    if out.shape[-1] != x.shape[-1]:
+        min_len = min(out.shape[-1], x.shape[-1])
+        out = out[..., :min_len]
+        x = x[..., :min_len]
+    return out + x  # OUR FIX: global residual connection -- addresses mode collapse
+                    # to unconditional mean (confirmed via Cell 5c/4b diagnostics);
+                    # standard remedy for encoder-decoder collapse, and frames the
+                    # task as "predict a correction" rather than "reconstruct from scratch"
  
