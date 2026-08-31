@@ -210,6 +210,8 @@ class MitigationAutoencoder(nn.Module):
     OUR ASSUMPTION: n_stages/n_hidden not specified in paper. Downsample
     stride=4 kernel=9, upsample stride=4 kernel=4, channels double/halve
     per stage (all BASE-PAPER FACT structural choices).
+    OUR FIX: global residual connection added after diagnosing mode
+    collapse to the unconditional mean (zero-output) via debug testing.
     """
     def __init__(self, n_stages: int = 2, n_hidden: int = 32):
         super().__init__()
@@ -231,18 +233,14 @@ class MitigationAutoencoder(nn.Module):
         self.final_conv = nn.Conv1d(ch, 2, kernel_size=9, padding=4)
 
     def forward(self, x):
-    h = self.first_conv(x)
-    for layer in self.encoder:
-        h = layer(h)
-    for layer in self.decoder:
-        h = layer(h)
-    out = self.final_conv(h)
-    if out.shape[-1] != x.shape[-1]:
-        min_len = min(out.shape[-1], x.shape[-1])
-        out = out[..., :min_len]
-        x = x[..., :min_len]
-    return out + x  # OUR FIX: global residual connection -- addresses mode collapse
-                    # to unconditional mean (confirmed via Cell 5c/4b diagnostics);
-                    # standard remedy for encoder-decoder collapse, and frames the
-                    # task as "predict a correction" rather than "reconstruct from scratch"
- 
+        h = self.first_conv(x)
+        for layer in self.encoder:
+            h = layer(h)
+        for layer in self.decoder:
+            h = layer(h)
+        out = self.final_conv(h)
+        if out.shape[-1] != x.shape[-1]:
+            min_len = min(out.shape[-1], x.shape[-1])
+            out = out[..., :min_len]
+            x = x[..., :min_len]
+        return out + x
