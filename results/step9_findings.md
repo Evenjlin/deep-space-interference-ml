@@ -47,3 +47,15 @@ project's primary research contribution.
 - Test against fawgn (excluded here since paper never evaluates fawgn
   for mitigation, but our method isn't paper-bound the way reproduction
   was)
+
+## Update: decision_weight sweep for square (Step 9c)
+Tested 25/50/100. Result: BER improvement plateaus at ~18-20% relative
+reduction regardless of weight; weight=100 sacrifices substantial MSE
+quality (final MSE 1.58 vs 0.57 at weight=25) for NO additional BER
+benefit, and triggers early stopping (active overfitting to the
+decision term). CONCLUSION: square's modest improvement is a genuine
+structural ceiling, not an under-tuning artifact -- consistent with
+square wave's harmonic-rich, SOI-resembling spectral content (flagged
+in the original loophole audit as uniquely hard to separate). Adopted
+weight=50.0 as the final square model (best BER of the three, without
+weight=100's MSE sacrifice).
