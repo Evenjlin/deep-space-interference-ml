@@ -4,7 +4,7 @@ Reproduction and extension of: de Senneville, Ogbe, Towfic — "Machine Learning
 Interference Detection and Mitigation on Deep Space Telecom Signals" (SSC25-RAI-07,
 39th Annual Small Satellite Conference).
 
-**Author:** Evenjilin Ekka, B.Tech ECE, NIT Delhi — supervised by Dr. Rikmantra Basu
+**Author:** Evenjilin Ekka, B.Tech ECE, NIT Delhi 
 
 ## Status: Implementation, reproduction, weakness audit, and proposed improvement complete
 
